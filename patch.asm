@@ -9,11 +9,11 @@
 	OFFSET_FADEOUT_BOSS_ALERT:			equ $0004722E
 	OFFSET_FADEOUT_STAGE_TRANSITION:	equ $000502DC
 	OFFSET_PLAY:						equ $0005BF7E
-	OFFSET_PAUSE_MUSIC_PLAYER:			equ $0004FFE4
-	OFFSET_RESUME_GAME:					equ $000587CC
-	OFFSET_PAUSE_GAME:					equ $00058952
+	OFFSET_PAUSE_MUSIC_PLAYER:			equ $0003F7D4
+	OFFSET_RESUME_GAME:					equ $0005451A
+	OFFSET_PAUSE_GAME:					equ $00054438
 	OFFSET_GAME_OVER_NAME_ENTRY_MUSIC:	equ $00058986
-	OFFSET_RESUME_MUSIC_PLAYER:			equ $00059E32
+	OFFSET_RESUME_MUSIC_PLAYER:			equ $0003FEBE
 	OFFSET_STOP_PLAYBACK:				equ $0005C25A
 
 	REGISTER_Z80_BUS_REQ:	equ $A11100 
@@ -25,6 +25,7 @@
 
 	org OFFSET_FADEOUT_BOSS_ALERT
 	jsr DETOUR_FADEOUT_BOSS_ALERT
+	nop
 
 	org OFFSET_FADEOUT_STAGE_TRANSITION
 	jsr DETOUR_FADEOUT_STAGE_TRANSITION
@@ -41,7 +42,6 @@
 
 	org OFFSET_PAUSE_GAME
 	jsr DETOUR_PAUSE_GAME
-	nop
 
 	org OFFSET_GAME_OVER_NAME_ENTRY_MUSIC
 	jmp DETOUR_GAME_OVER
@@ -81,20 +81,27 @@ DETOUR_FADEOUT_STAGE_TRANSITION:
 	move.b D2,($A00190)
 	rts
 
-DETOUR_GAME_OVER: 
+DETOUR_GAME_OVER:
+	move.w D0,-(A7)
+	cmpi.w #$0,D3			; Function is also called upon pause, ensure this is an actual game over call
+	bne .EXIT_GAME_OVER
+
 	move.w #$1600,D0
 	move.w #$CD54,(MD_PLUS_OVERLAY_PORT)
 	move.w D0,(MD_PLUS_CMD_PORT)
 	move.w (MD_PLUS_RESPONSE_PORT),D0
 	move.w #$0000,(MD_PLUS_OVERLAY_PORT)
-    tst.b D0
-    beq EXIT_GAME_OVER
-	clr.w D1
-    move.w ($FF13B8),D1
+    tst.w D0
+    beq .EXIT_GAME_OVER
+	move.w (A7)+,D0
+
+	move.w ($FF13B8),D1
     subq.w #$1,D1
     move.w D1,($FF13B8)
+
     jmp $589BE
-EXIT_GAME_OVER
+.EXIT_GAME_OVER
+	move.w (A7)+,D0
     movea.l #$A11100,A0
     jmp $5898C
 
@@ -105,44 +112,35 @@ DETOUR_STOP_PLAYBACK:
     rts
 
 DETOUR_RESUME_GAME:
-	tst.w D0
-	bne .notResumeCDDA
-	tst.w D1
-	bne .notResumeCDDA
+	move.w D0,-(A7)
 	move #$1400,D0
 	jsr WRITE_MD_PLUS_FUNCTION
-.notResumeCDDA
-	move.w ($FF303A),D0
+	move.w (A7)+,D0
+	jsr $587CC
 	rts
 
 DETOUR_PAUSE_GAME:
-	cmpi.w #$0001,D0
-	bne .notPauseCDDA
+	move.w D0,-(A7)
     move #$1300,D0
 	jsr WRITE_MD_PLUS_FUNCTION
-.notPauseCDDA
-	move.l (A7)+,D0
-	subq.l #$4,A7
-	move.l D0,-(A7)
-	move.w ($FF303A),D0
+	move.w (A7)+,D0
+	jsr $58952
     rts
 
 DETOUR_RESUME_MUSIC_PLAYER:
-	cmpi.w #$2300,D0
-	bne .notResume
-    move.w D0,-(A7)
+	move.w D0,-(A7)
 	move #$1400,D0
 	jsr WRITE_MD_PLUS_FUNCTION
-    move.w (A7)+,D0
-.notResume
-	move.w ($C00008),D1
-	lsr.w #$8,D1
+	move.w (A7)+,D0
+	jsr $59E30
     rts
 
 DETOUR_PAUSE_MUSIC_PLAYER:
+	move.w D0,-(A7)
 	move #$1300,D0
 	jsr WRITE_MD_PLUS_FUNCTION
-    move.w ($FF303A),D0
+	move.w (A7)+,D0
+    jsr $4FFE4
     rts
 
 DETOUR_PLAY:
@@ -158,10 +156,6 @@ DETOUR_PLAY:
 TEST_PLAYABLE_TRUE
     addq.b #$1,D1
 	cmpi.b #$9,D1
-;	bne .notNine
-;	nop 
-;	nop 
-;.notNine
     or.b D1,D0
 	jsr WRITE_MD_PLUS_FUNCTION
     jsr RESTORE_REGISTERS
@@ -174,12 +168,12 @@ PRESERVE_REGISTERS:
     movem.l D0-D6/A0-A7,-(A7)
     lea (A7),A0
     lea ($138,A7),A7
-    clr.l D0  ;Track Number
-    clr.l D1  ;Command
-    clr.l D2  ;Command Arg 1
-    clr.l D3  ;Command Arg 2
-    clr.l D4  ;MegaCD Present
-    clr.l D5  ;Volume
+    clr.l D0
+    clr.l D1
+    clr.l D2
+    clr.l D3
+    clr.l D4
+    clr.l D5
     move.w ($A,A7),D1 ;Get the track number from the stack
     rts
 
