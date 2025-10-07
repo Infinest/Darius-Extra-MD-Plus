@@ -16,7 +16,9 @@
 	OFFSET_RESUME_MUSIC_PLAYER:			equ $0003FEBE
 	OFFSET_STOP_PLAYBACK:				equ $0005C25A
 
-	REGISTER_Z80_BUS_REQ:	equ $A11100 
+	REGISTER_Z80_BUS_REQ:	equ $A11100
+
+	RAM_FADEOUT_STATE:	equ $FFF700
 
 ; Overrides: ---------------------------------------------------------------------------------
 
@@ -66,6 +68,7 @@ DETOUR_FADEOUT_BOSS_ALERT:
 	move.w D0,-(A7)
 	move.w #$13A0,D0
 	jsr WRITE_MD_PLUS_FUNCTION
+	move.b #$1,(RAM_FADEOUT_STATE)
 	move.w (A7)+,D0
 	move.b #$24,($A00190)
 	rts
@@ -76,6 +79,7 @@ DETOUR_FADEOUT_STAGE_TRANSITION:
 	move.w D0,-(A7)
 	move.w #$13C0,D0
 	jsr WRITE_MD_PLUS_FUNCTION
+	move.b #$1,(RAM_FADEOUT_STATE)
 	move.w (A7)+,D0
 .notFadeOut
 	move.b D2,($A00190)
@@ -112,10 +116,13 @@ DETOUR_STOP_PLAYBACK:
     rts
 
 DETOUR_RESUME_GAME:
+	tst.b (RAM_FADEOUT_STATE)
+	bne .isOrHasFaded
 	move.w D0,-(A7)
 	move #$1400,D0
 	jsr WRITE_MD_PLUS_FUNCTION
 	move.w (A7)+,D0
+.isOrHasFaded
 	jsr $587CC
 	rts
 
@@ -159,6 +166,7 @@ TEST_PLAYABLE_TRUE
     or.b D1,D0
 	jsr WRITE_MD_PLUS_FUNCTION
     jsr RESTORE_REGISTERS
+	clr.b (RAM_FADEOUT_STATE)
     jmp $5c1e2
 
 
